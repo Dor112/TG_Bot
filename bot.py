@@ -1,4 +1,4 @@
-import asyncio
+
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters.command import Command
@@ -6,28 +6,62 @@ from config import config
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 from wheather import get_wheather
-
+from aiogram.fsm.storage.memory import MemoryStorage
 
 scheduler = AsyncIOScheduler()
-# Включаем логирование, чтобы не пропустить важные сообщения
-logging.basicConfig(level=logging.INFO)
-# Объект бота
-bot = Bot(token=config.bot_token.get_secret_value())
-# Диспетчер
-dp = Dispatcher()
 
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=config.bot_token.get_secret_value())
+
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+
+auto_users = set()
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Hello!")
+    await message.answer("Привет!")
 
 @dp.message(Command("wheather"))
 async def cmd_wheather(message: types.Message):
     wheather_data = await get_wheather()
     await message.reply(wheather_data)
 
-# Запуск процесса поллинга новых апдейтов
+@dp.message(Command("auto_on"))
+async def cmd_auto_on(message: types.Message):
+    user_id = message.from_user.id
+    if user_id in auto_users:
+        await message.answer("Автоотправка уже работает!")
+    else:
+        auto_users.add(user_id)
+        await message.answer("Вы были добавленны в список!")
+
+        wheather_data = await get_wheather()
+        await message.reply(wheather_data)
+
+@dp.message(Command("auto_off"))
+async def cmd_auto_off(message: types.Message):
+    user_id = message.from_user.id
+    if user_id in auto_users:
+        auto_users.remove(user_id)
+        await message.answer("❌ Автоотправка выключена.")
+    else:
+        await message.answer("Автоотправка не была включена.")
+
+async def send_to_subs():
+    if not auto_users:
+        return 0
+    weather_data = await get_wheather()
+    for user_id in list(auto_users):
+        await bot.send_message(user_id,weather_data)
 async def main():
-    await dp.start_polling(bot)
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(send_to_subs, "interval", seconds = 5)
+    scheduler.start()
+    try:
+        await dp.start_polling(bot)
+    finally:
+        scheduler.shutdown()
 
 
 if __name__ == "__main__":
