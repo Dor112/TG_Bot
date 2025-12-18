@@ -8,6 +8,7 @@ from wheather import get_wheather
 from aiogram.fsm.storage.memory import MemoryStorage
 #from Database_con import db_connection
 from Database_con import cur
+from ai_advice import get_clothing_advice
 
 scheduler = AsyncIOScheduler()
 
@@ -27,8 +28,12 @@ async def cmd_start(message: types.Message):
 
 @dp.message(Command("wheather"))
 async def cmd_wheather(message: types.Message):
-    wheather_data = await get_wheather()
-    await message.reply(wheather_data)
+    weather_data = await get_wheather()
+    advice = await get_clothing_advice(weather_data)
+
+    await message.reply(
+        f"{weather_data}\n\n👕 Совет по одежде:\n{advice}"
+    )
 
 @dp.message(Command("auto_on"))
 async def cmd_auto_on(message: types.Message):
@@ -57,8 +62,12 @@ async def send_to_subs():
     if not auto_users:
         return 0
     weather_data = await get_wheather()
+    advice = await get_clothing_advice(weather_data)
+    text = f"{weather_data}\n\n👕 Совет по одежде:\n{advice}"
     for user_id in list(auto_users):
-        await bot.send_message(user_id,weather_data)
+        await bot.send_message(user_id,text)
+
+
 async def main():
     scheduler = AsyncIOScheduler()
     scheduler.add_job(send_to_subs, "interval", seconds = 5)
