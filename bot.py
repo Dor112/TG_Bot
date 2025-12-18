@@ -1,4 +1,3 @@
-
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters.command import Command
@@ -7,6 +6,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 from wheather import get_wheather
 from aiogram.fsm.storage.memory import MemoryStorage
+#from Database_con import db_connection
+from Database_con import cur
 
 scheduler = AsyncIOScheduler()
 
@@ -16,8 +17,10 @@ bot = Bot(token=config.bot_token.get_secret_value())
 
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
-
-auto_users = set()
+#conn = db_connection()
+cur.execute("SELECT id FROM users")
+auto_users = [row[0] for row in cur]
+#print(auto_users)
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer("Привет!")
@@ -30,10 +33,12 @@ async def cmd_wheather(message: types.Message):
 @dp.message(Command("auto_on"))
 async def cmd_auto_on(message: types.Message):
     user_id = message.from_user.id
+    user_id = int(user_id)
     if user_id in auto_users:
         await message.answer("Автоотправка уже работает!")
     else:
-        auto_users.add(user_id)
+        cur.execute("INSERT INTO users (id) VALUES (%s)", (user_id,))
+        auto_users.append(user_id)
         await message.answer("Вы были добавленны в список!")
 
         wheather_data = await get_wheather()
@@ -44,7 +49,7 @@ async def cmd_auto_off(message: types.Message):
     user_id = message.from_user.id
     if user_id in auto_users:
         auto_users.remove(user_id)
-        await message.answer("❌ Автоотправка выключена.")
+        await message.answer("Автоотправка выключена.")
     else:
         await message.answer("Автоотправка не была включена.")
 
